@@ -42,8 +42,11 @@ jobs:
       - name: Configure kernel
         run: |
           make O=out ARCH=arm64 vendor/xiaomi/miatoll_defconfig
-          # Force disable Shadow Call Stack after defconfig (may get re-enabled by dependency resolution)
+          # Disable configs that corrupt function pointers with Clang on 4.14 CAF
           scripts/config --file out/.config -d SHADOW_CALL_STACK
+          scripts/config --file out/.config -d LTO_CLANG
+          scripts/config --file out/.config -d THINLTO
+          scripts/config --file out/.config -d CFI_CLANG
           make O=out ARCH=arm64 olddefconfig
 
       - name: Build kernel
@@ -70,8 +73,10 @@ jobs:
           echo "===== KPROBE CHECK ====="
           grep CONFIG_KPROBES out/.config || echo "❌ KPROBES NOT FOUND"
 
-          echo "===== SHADOW CALL STACK CHECK ====="
-          grep CONFIG_SHADOW_CALL_STACK out/.config || echo "✅ SHADOW_CALL_STACK not set (correct)"
+          echo "===== PROBLEMATIC CONFIGS CHECK ====="
+          grep -E "CONFIG_SHADOW_CALL_STACK|CONFIG_LTO_CLANG|CONFIG_THINLTO|CONFIG_CFI_CLANG" out/.config \
+            && echo "⚠️  WARNING: one or more problematic configs still enabled" \
+            || echo "✅ All problematic configs disabled"
 
           echo "===== KERNELSU CHECK ====="
           find out -name "*ksu*" || echo "❌ KernelSU NOT BUILT"
